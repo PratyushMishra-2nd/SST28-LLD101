@@ -6,25 +6,39 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * INTENTION: Global metrics registry (should be a Singleton).
+ *
+ * CURRENT STATE (BROKEN ON PURPOSE):
+ * - Constructor is public -> anyone can create instances.
+ * - getInstance() is lazy but NOT thread-safe -> can create multiple instances.
+ * - Reflection can call the constructor to create more instances.
+ * - Serialization can create a new instance when deserialized.
+ *
+ * TODO (student):
+ *  1) Make it a proper lazy, thread-safe singleton (private ctor)
+ *  2) Block reflection-based multiple construction
+ *  3) Preserve singleton on serialization (readResolve)
+ */
 public class MetricsRegistry implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
+    private static MetricsRegistry INSTANCE; // BROKEN: not volatile, not thread-safe
     private final Map<String, Long> counters = new HashMap<>();
 
-    private MetricsRegistry() {
-        if (Holder.INSTANCE != null) {
-            throw new IllegalStateException("Use MetricsRegistry.getInstance()");
-        }
+    // BROKEN: should be private and should prevent second construction
+    public MetricsRegistry() {
+        // intentionally empty
     }
 
-    private static final class Holder {
-        private static final MetricsRegistry INSTANCE = new MetricsRegistry();
-    }
-
+    // BROKEN: racy lazy init; two threads can create two instances
     public static MetricsRegistry getInstance() {
-        return Holder.INSTANCE;
+        if (INSTANCE == null) {
+            INSTANCE = new MetricsRegistry();
+        }
+        return INSTANCE;
     }
 
     public synchronized void setCount(String key, long value) {
@@ -43,8 +57,5 @@ public class MetricsRegistry implements Serializable {
         return Collections.unmodifiableMap(new HashMap<>(counters));
     }
 
-    @Serial
-    protected Object readResolve() {
-        return Holder.INSTANCE;
-    }
+    // TODO: implement readResolve() to preserve singleton on deserialization
 }
